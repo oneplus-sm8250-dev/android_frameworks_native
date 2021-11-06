@@ -72,9 +72,11 @@
 #include "TimeStats/TimeStats.h"
 #include "TunnelModeEnabledReporter.h"
 #include "input/InputWindow.h"
+#include "QtiGralloc.h"
 
 #define DEBUG_RESIZE 0
 
+using android::hardware::graphics::common::V1_0::BufferUsage;
 namespace android {
 namespace {
 constexpr int kDumpTableRowLength = 159;
@@ -450,6 +452,11 @@ void Layer::prepareGeometryCompositionState() {
     compositionState->geomBufferUsesDisplayInverseTransform = getTransformToDisplayInverse();
     compositionState->geomUsesSourceCrop = usesSourceCrop();
     compositionState->isSecure = isSecure();
+    compositionState->isSecureDisplay = isSecureDisplay();
+    compositionState->isSecureCamera = isSecureCamera();
+    compositionState->isScreenshot = isScreenshot();
+
+    compositionState->layerClass = mLayerClass;
 
     compositionState->metadata.clear();
     const auto& supportedMetadata = mFlinger->getHwComposer().getSupportedLayerGenericMetadata();
@@ -681,6 +688,23 @@ bool Layer::isSecure() const {
     return (p != nullptr) ? p->isSecure() : false;
 }
 
+bool Layer::isSecureDisplay() const {
+    sp<const GraphicBuffer> buffer = getBuffer();
+    return buffer && (buffer->getUsage() & GRALLOC_USAGE_PRIVATE_SECURE_DISPLAY);
+}
+
+bool Layer::isSecureCamera() const {
+    sp<const GraphicBuffer> buffer = getBuffer();
+    bool protected_buffer = buffer && (buffer->getUsage() & BufferUsage::PROTECTED);
+    bool camera_output = buffer && (buffer->getUsage() & BufferUsage::CAMERA_OUTPUT);
+    return protected_buffer && camera_output;
+}
+
+bool Layer::isScreenshot() const {
+    return ((getName().find("ScreenshotSurface") != std::string::npos) ||
+            (getName().find("RotationLayer") != std::string::npos) ||
+            (getName().find("BackColorSurface") != std::string::npos));
+}
 // ----------------------------------------------------------------------------
 // transaction
 // ----------------------------------------------------------------------------
@@ -1041,15 +1065,21 @@ bool Layer::setFrameRateSelectionPriority(int32_t priority) {
 int32_t Layer::getFrameRateSelectionPriority() const {
     // Check if layer has priority set.
     if (mDrawingState.frameRateSelectionPriority != PRIORITY_UNSET) {
-        return mDrawingState.frameRateSelectionPriority;
+        mPriority = mDrawingState.frameRateSelectionPriority;
+        return mPriority;
     }
     // If not, search whether its parents have it set.
     sp<Layer> parent = getParent();
     if (parent != nullptr) {
-        return parent->getFrameRateSelectionPriority();
+        mPriority = parent->getFrameRateSelectionPriority();
+        return mPriority;
     }
 
     return Layer::PRIORITY_UNSET;
+}
+
+int32_t Layer::getPriority() {
+    return mPriority;
 }
 
 bool Layer::isLayerFocusedBasedOnPriority(int32_t priority) {
@@ -1418,6 +1448,7 @@ void Layer::miniDumpHeader(std::string& result) {
     result.append(" Layer name\n");
     result.append("           Z | ");
     result.append(" Window Type | ");
+    result.append(" Layer Class | ");
     result.append(" Comp Type | ");
     result.append(" Transform | ");
     result.append("  Disp Frame (LTRB) | ");
@@ -1468,6 +1499,7 @@ void Layer::miniDump(std::string& result, const DisplayDevice& display) const {
         StringAppendF(&result, "  %10d | ", layerState.z);
     }
     StringAppendF(&result, "  %10d | ", mWindowType);
+    StringAppendF(&result, "  %10d | ", mLayerClass);
     StringAppendF(&result, "%10s | ", toString(getCompositionType(display)).c_str());
     StringAppendF(&result, "%10s | ", toString(outputLayerState.bufferTransform).c_str());
     const Rect& frame = outputLayerState.displayFrame;
@@ -2553,6 +2585,10 @@ bool Layer::getPrimaryDisplayOnly() const {
 
     sp<Layer> parent = mDrawingParent.promote();
     return parent == nullptr ? false : parent->getPrimaryDisplayOnly();
+}
+
+nsecs_t Layer::getPreviousGfxInfo() {
+    return mFrameTracker.getPreviousGfxInfo();
 }
 
 void Layer::setClonedChild(const sp<Layer>& clonedChild) {

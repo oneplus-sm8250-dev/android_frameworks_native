@@ -67,7 +67,8 @@ DisplayDevice::DisplayDevice(DisplayDeviceCreationArgs& args)
         mCompositionDisplay{args.compositionDisplay},
         mPhysicalOrientation(args.physicalOrientation),
         mSupportedModes(std::move(args.supportedModes)),
-        mIsPrimary(args.isPrimary) {
+        mIsPrimary(args.isPrimary),
+        mIsPowerModeOverride(false){
     mCompositionDisplay->editState().isSecure = args.isSecure;
     mCompositionDisplay->createRenderSurface(
             compositionengine::RenderSurfaceCreationArgsBuilder()
@@ -210,6 +211,14 @@ nsecs_t DisplayDevice::getRefreshTimestamp() const {
 
 void DisplayDevice::onVsync(nsecs_t timestamp) {
     mLastHwVsync = timestamp;
+}
+
+void DisplayDevice::setPowerModeOverrideConfig(bool supported) {
+    mIsPowerModeOverride = supported;
+}
+
+bool DisplayDevice::getPowerModeOverrideConfig() const {
+    return mIsPowerModeOverride;
 }
 
 ui::Dataspace DisplayDevice::getCompositionDataSpace() const {

@@ -85,8 +85,14 @@ public:
 private:
     bool mIsVirtual = false;
     bool mIsDisconnected = false;
+    bool mIsColorModeChanged = false;
     DisplayId mId;
     Hwc2::PowerAdvisor* mPowerAdvisor = nullptr;
+    bool mHasScreenshot = false;
+    ui::DisplayConnectionType mConnectionType = ui::DisplayConnectionType::Internal;
+    composer::DisplayExtnIntf *mDisplayExtnIntf = nullptr;
+    void beginDraw();
+    void endDraw();
 };
 
 // This template factory function standardizes the implementation details of the

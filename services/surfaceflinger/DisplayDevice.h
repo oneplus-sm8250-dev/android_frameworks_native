@@ -191,6 +191,8 @@ public:
     nsecs_t getVsyncPeriodFromHWC() const;
     nsecs_t getRefreshTimestamp() const;
 
+    void setPowerModeOverrideConfig(bool supported);
+    bool getPowerModeOverrideConfig() const;
     // release HWC resources (if any) for removable displays
     void disconnect();
 
@@ -230,6 +232,8 @@ private:
     std::optional<DeviceProductInfo> mDeviceProductInfo;
 
     std::vector<ui::Hdr> mOverrideHdrTypes;
+
+    bool mIsPowerModeOverride;
 };
 
 struct DisplayDeviceState {
