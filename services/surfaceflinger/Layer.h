@@ -447,6 +447,7 @@ public:
     //  If the variable is not set on the layer, it traverses up the tree to inherit the frame
     //  rate priority from its parent.
     virtual int32_t getFrameRateSelectionPriority() const;
+    int32_t getPriority();
     virtual ui::Dataspace getDataSpace() const { return ui::Dataspace::UNKNOWN; }
 
     virtual sp<compositionengine::LayerFE> getCompositionEngineLayerFE() const;
@@ -672,6 +673,10 @@ public:
      * application, being secure doesn't mean the surface has DRM contents.
      */
     bool isSecure() const;
+
+    bool isSecureCamera() const;
+    bool isSecureDisplay() const;
+    bool isScreenshot() const;
 
     /*
      * isHiddenByPolicy - true if this layer has been forced invisible.
@@ -950,7 +955,10 @@ protected:
     LayerVector makeTraversalList(LayerVector::StateSet, bool* outSkipRelativeZUsers);
     void addZOrderRelative(const wp<Layer>& relative);
     void removeZOrderRelative(const wp<Layer>& relative);
+// TODO(b/156774977): Restore protected visibility when fixed.
+public:
     compositionengine::OutputLayer* findOutputLayerForDisplay(const DisplayDevice*) const;
+protected:
     bool usingRelativeZ(LayerVector::StateSet) const;
 
     virtual ui::Transform getInputTransform() const;
@@ -981,6 +989,8 @@ protected:
     ConsumerFrameEventHistory mFrameEventHistory;
     FenceTimeline mAcquireTimeline;
     FenceTimeline mReleaseTimeline;
+
+    uint32_t mLayerClass{0};
 
     // main thread
     sp<NativeHandle> mSidebandStream;
@@ -1110,10 +1120,14 @@ private:
     // metrics(SurfaceFlingerStats).
     int32_t mGameMode = 0;
 
+    mutable int32_t mPriority = Layer::PRIORITY_UNSET;
+
     // A list of regions on this layer that should have blurs.
     const std::vector<BlurRegion> getBlurRegions() const;
 
     bool mIsAtRoot = false;
+public:
+    nsecs_t getPreviousGfxInfo();
 };
 
 std::ostream& operator<<(std::ostream& stream, const Layer::FrameRate& rate);

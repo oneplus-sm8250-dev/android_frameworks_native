@@ -29,6 +29,8 @@
 #include <gui/IProducerListener.h>
 #include <gui/Surface.h>
 #include <utils/Singleton.h>
+#include <string.h>
+
 #include <utils/Trace.h>
 
 #include <private/gui/ComposerService.h>
@@ -159,9 +161,27 @@ BLASTBufferQueue::BLASTBufferQueue(const std::string& name, const sp<SurfaceCont
     mBufferItemConsumer->setDefaultBufferSize(mSize.width, mSize.height);
     mBufferItemConsumer->setDefaultBufferFormat(convertBufferFormat(format));
     mBufferItemConsumer->setBlastBufferQueue(this);
-
     ComposerService::getComposerService()->getMaxAcquiredBufferCount(&mMaxAcquiredBuffers);
     mBufferItemConsumer->setMaxAcquiredBufferCount(mMaxAcquiredBuffers);
+
+    if(strstr(mName.c_str(),"ScreenDecorOverlay") != nullptr){
+       sp<SurfaceComposerClient> client = mSurfaceControl->getClient();
+       if (client != nullptr) {
+           const sp<IBinder> display = client->getInternalDisplayToken();
+           if (display != nullptr) {
+               bool isDeviceRCSupported = false;
+               status_t err = client->isDeviceRCSupported(display, &isDeviceRCSupported);
+               if (!err && isDeviceRCSupported) {
+                   // retain original flags and append SW Flags
+                   uint64_t usage = GraphicBuffer::USAGE_HW_COMPOSER |
+                                    GraphicBuffer::USAGE_HW_TEXTURE |
+                                    GraphicBuffer::USAGE_SW_READ_RARELY |
+                                    GraphicBuffer::USAGE_SW_WRITE_RARELY;
+                   mConsumer->setConsumerUsageBits(usage);
+                }
+            }
+        }
+    }
 
     mTransformHint = mSurfaceControl->getTransformHint();
     mBufferItemConsumer->setTransformHint(mTransformHint);
@@ -377,6 +397,7 @@ void BLASTBufferQueue::releaseBufferCallback(const ReleaseCallbackId& id,
         BQA_LOGV("released %s", id.to_string().c_str());
         mBufferItemConsumer->releaseBuffer(it->second, releaseBuffer.releaseFence);
         mSubmitted.erase(it);
+        mNumUndequeued++;
         processNextBufferLocked(false /* useNextTransaction */);
     }
 
@@ -572,6 +593,7 @@ void BLASTBufferQueue::onFrameReplaced(const BufferItem& item) {
 void BLASTBufferQueue::onFrameDequeued(const uint64_t bufferId) {
     std::unique_lock _lock{mTimestampMutex};
     mDequeueTimestamps[bufferId] = systemTime();
+    mNumUndequeued--;
 };
 
 void BLASTBufferQueue::onFrameCancelled(const uint64_t bufferId) {
