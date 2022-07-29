@@ -116,7 +116,8 @@ bool BufferQueueLayer::isBufferDue(nsecs_t expectedPresentTime) const {
         mFlinger->mTimeStats->incrementBadDesiredPresent(getSequence());
     }
 
-    const bool isDue = addedTime < expectedPresentTime;
+    bool isDue = addedTime < expectedPresentTime;
+
     return isDue || !isPlausible;
 }
 
